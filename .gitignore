@@ -1,0 +1,17 @@
+# Python 垃圾文件
+__pycache__/
+*.py[cod]
+venv/
+
+# 环境变量和密钥 (绝对不能传!)
+.env
+profiles.yml
+~/.dbt/
+
+# dbt 编译文件
+target/
+dbt_packages/
+logs/
+
+# 系统文件
+.DS_Store
