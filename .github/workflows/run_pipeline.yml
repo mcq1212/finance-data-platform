@@ -1,0 +1,77 @@
+name: Crypto Data Pipeline
+
+# 触发条件
+on:
+  # 1. 定时触发 (Cron 语法)
+  # 这里的含义是：每 6 小时运行一次 (UTC时间 0点, 6点, 12点, 18点)
+  schedule:
+    - cron: '0 */6 * * *'
+  
+  # 2. 手动触发 (方便你测试，点击按钮立刻运行)
+  workflow_dispatch:
+
+jobs:
+  # 任务一：运行 Python 抓取数据 (EL)
+  extract_and_load:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code (拉取代码)
+        uses: actions/checkout@v3
+
+      - name: Set up Python (安装 Python)
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies (安装依赖)
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run Extraction Script (运行爬虫)
+        env:
+          # 把 GitHub Secrets 注入到环境变量中
+          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+        run: python scripts/load_crypto_data.py
+
+  # 任务二：运行 dbt 清洗数据 (T)
+  transform:
+    needs: extract_and_load # 关键！必须等 Python 跑完成功了，才跑 dbt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dbt
+        run: pip install dbt-snowflake
+
+      - name: Create profiles.yml (动态生成连接配置)
+        # 这是一个技巧：在 CI 环境里临时生成 profiles.yml
+        run: |
+          mkdir -p ~/.dbt
+          echo "my_finance_project:" > ~/.dbt/profiles.yml
+          echo "  target: dev" >> ~/.dbt/profiles.yml
+          echo "  outputs:" >> ~/.dbt/profiles.yml
+          echo "    dev:" >> ~/.dbt/profiles.yml
+          echo "      type: snowflake" >> ~/.dbt/profiles.yml
+          echo "      account: ${{ secrets.SNOWFLAKE_ACCOUNT }}" >> ~/.dbt/profiles.yml
+          echo "      user: ${{ secrets.SNOWFLAKE_USER }}" >> ~/.dbt/profiles.yml
+          echo "      password: ${{ secrets.SNOWFLAKE_PASSWORD }}" >> ~/.dbt/profiles.yml
+          echo "      role: ACCOUNTADMIN" >> ~/.dbt/profiles.yml
+          echo "      warehouse: COMPUTE_WH" >> ~/.dbt/profiles.yml
+          echo "      database: CRYPTO_ANALYTICS" >> ~/.dbt/profiles.yml
+          echo "      schema: dbt_dev" >> ~/.dbt/profiles.yml
+          echo "      threads: 4" >> ~/.dbt/profiles.yml
+
+      - name: Run dbt models (运行转换)
+        working-directory: ./my_finance_project # 进入 dbt 目录
+        run: |
+          dbt deps
+          dbt run
+          dbt test
