@@ -1,0 +1,20 @@
+version: 2
+
+sources:
+  - name: crypto_raw           # 对应 {{ source() }} 的第一个参数
+    database: CRYPTO_RAW       # 对应 Snowflake 里的真实数据库名
+    schema: BINANCE            # 对应 Snowflake 里的真实 Schema (你的 Python 脚本里写的)
+    
+    #这是为了告诉 dbt 这张表的一些元数据
+    description: "Raw cryptocurrency data fetched from CoinGecko API via Python script"
+    
+    tables:
+      - name: raw_market_data  # 对应 {{ source() }} 的第二个参数
+        description: "Contains raw JSON response with USDT/USDC prices"
+        
+        # (可选) 新鲜度检查：如果超过 24 小时没新数据，dbt 会警告你
+        # 这对于监控你的 Python 脚本是否挂了非常有用
+        freshness:
+          warn_after: {count: 24, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: loaded_at # 你的表中必须有这个时间戳字段

@@ -32,5 +32,12 @@ clean-targets:         # directories to be removed by `dbt clean`
 models:
   my_finance_project:
     # Config indicated by + and applies to all files under models/example/
-    example:
-      +materialized: view
+    # 配置 staging 文件夹下的行为
+    staging:
+      +materialized: view  # 建议：staging层默认用视图
+      +schema: staging     # 关键点！这里定义了"自定义模式后缀"
+    
+    # 配置 marts 文件夹下的行为
+    marts:
+      +materialized: table # 建议：marts层默认用物理表
+      +schema: marts       # 关键点！
